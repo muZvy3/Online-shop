@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:14.19
+    container_name: online-shop-db
+    environment:
+      POSTGRES_DB: online_shop
+      POSTGRES_USER: user_book
+      POSTGRES_PASSWORD: 123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - bookshop-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_book -d online_shop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: online-shop-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/online_shop
+      SPRING_DATASOURCE_USERNAME: user_book
+      SPRING_DATASOURCE_PASSWORD: 123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bookshop-network
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/localhost/8080' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_data:
+
+networks:
+  bookshop-network:
+    driver: bridge

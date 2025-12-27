@@ -23,7 +23,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5433:5432
+          - 5432:5432
 
     steps:
     - uses: actions/checkout@v4
@@ -34,6 +34,22 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+
+        name: Wait for PostgreSQL to be ready
+        run: |
+          echo "Waiting for PostgreSQL to accept connections..."
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U test_user -d online_shop_test; then
+              echo "PostgreSQL is ready and accepting connections!"
+              exit 0
+            fi
+            echo "Attempt $i/30: PostgreSQL not ready yet. Retrying in 1 second..."
+            sleep 1
+          done
+          echo "ERROR: PostgreSQL failed to become ready within 30 seconds."
+          exit 1
+        env:
+        PGPASSWORD: test_password
         
     - name: Run tests
       run: ./mvnw test -Dspring.profiles.active=test
